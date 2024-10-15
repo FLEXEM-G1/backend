@@ -117,7 +117,7 @@ module.exports.DELETE = async (req, res) => {
 // Add commission to bank
 module.exports.ADD_COMMISSION = async (req, res) => {
     const { id } = req.params;
-    const { type, amount } = req.body;
+    const { name, type, amount } = req.body;
 
     if (!type || !amount) {
         return res.status(400).json({ message: "Todos los campos son obligatorios" });
@@ -130,7 +130,7 @@ module.exports.ADD_COMMISSION = async (req, res) => {
             return res.status(404).json({ message: "Banco no encontrado" });
         }
 
-        bank.commissions.push({ type, amount });
+        bank.commissions.push({ name, type, amount });
         await bank.save();
 
         res.json(bank);
@@ -142,7 +142,7 @@ module.exports.ADD_COMMISSION = async (req, res) => {
 // Update commission of a bank
 module.exports.UPDATE_COMMISSION = async (req, res) => {
     const { id, commissionId } = req.params;
-    const { type, amount } = req.body;
+    const { name, type, amount } = req.body;
 
     if (!type || !amount) {
         return res.status(400).json({ message: "Todos los campos son obligatorios" });
@@ -161,6 +161,7 @@ module.exports.UPDATE_COMMISSION = async (req, res) => {
             return res.status(404).json({ message: "Comisión no encontrada" });
         }
 
+        commission.name = name;
         commission.type = type;
         commission.amount = amount;
 
@@ -168,6 +169,7 @@ module.exports.UPDATE_COMMISSION = async (req, res) => {
 
         res.json(bank);
     } catch (error) {
+        console.log(error)
         res.status(500).json({ message: "Error al actualizar la comisión" });
     }
 };

@@ -111,15 +111,15 @@ module.exports.PUT_TCEA = async (req, res) => {
         });
 
         // Espera a que todas las promesas se resuelvan
-        await Promise.all(updatePromises);
+        const updatedInvoices = await Promise.all(updatePromises);
 
         // Calcula el monto neto descontado usando reduce
-        const netDiscountedValue = invoiceBills.reduce((accumulator, invoice) => {
+        const netDiscountedValue = updatedInvoices.reduce((accumulator, invoice) => {
             return accumulator + invoice.netDiscountedAmount;
         }, 0);
 
         // Calcula el TCEA
-        const { nom, den } = invoiceBills.reduce((acc, invoice) => {
+        const { nom, den } = updatedInvoices.reduce((acc, invoice) => {
             const amountInSoles = invoice.currency === 'USD' ? invoice.amount * exchangeRates.rates.PEN : invoice.amount;
             acc.nom += amountInSoles * (invoice.tcea / 100);
             acc.den += amountInSoles;
@@ -128,7 +128,6 @@ module.exports.PUT_TCEA = async (req, res) => {
 
         const tcea = (den !== 0) ? (nom / den) * 100 : 0;
 
-        
         portfolio.bankId = bankId;
         portfolio.tcea = tcea;
         portfolio.netDiscountedAmount = netDiscountedValue;

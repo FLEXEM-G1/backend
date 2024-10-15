@@ -128,17 +128,36 @@ module.exports.PUT_TCEA = async (req) => {
             return res.status(404).json({ message: "Banco no encontrado" });
         }
 
+        // Commisions
+        const totals = { PayF: 0, PayE: 0, Withholding: 0 };
+
+        bank.commissions.forEach(commission => {
+            if (totals.hasOwnProperty(commission.type)) {
+                totals[commission.type] += commission.amount;
+            }
+        });
+
+        const { PayF: payF, PayE: payE, Withholding: withholding } = totals;
+
         // Calcular el monto en base a la moneda
-        const amount = invoiceBill.currency === 'USD' ? invoiceBill.amount * exchangeRates.rates.PEN : invoiceBill.amount;
+        const isUSD = invoiceBill.currency === 'USD';
+        const amount = isUSD ? invoiceBill.amount * exchangeRates.rates.PEN : invoiceBill.amount;
+
         // Calcular la diferencia de días
         const daysDiff = (new Date(invoiceBill.expirationDate) - new Date(dateTcea)) / (1000 * 3600 * 24);
+        
         // Calcular el factor de tasa y el exponente
-        const rateFactor = bank.rateType === 'TNA' ? bank.rate / (100*360) : bank.rate / 100;
-        const exponent = bank.rateType === 'TNA' ? daysDiff : daysDiff / 360;
+        const isTNA = bank.rateType === 'TNA';
+        const rateFactor = isTNA ? bank.rate / (100 * 360) : bank.rate / 100;
+        const exponent = isTNA ? daysDiff : daysDiff / 360;
+
+        // Calcular el porcentaje de retención una sola vez
+        const withholdingFactor = (withholding / 100) * amount;
+
         // Calcular el monto neto descontado
-        const netAmount = amount / (1 + rateFactor) ** exponent;
+        const netAmount = (amount / (1 + rateFactor) ** exponent) - payF - withholdingFactor;
         // Calcular el TCEA
-        const tcea = ((amount / netAmount) ** (360 / daysDiff) - 1)*100;
+        const tcea = (((amount + payE - withholdingFactor) / netAmount) ** (360 / daysDiff) - 1)*100;
         // Actualizar la factura con los nuevos valores
         invoiceBill.netDiscountedAmount = netAmount;
         invoiceBill.tcea = tcea;
