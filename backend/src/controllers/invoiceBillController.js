@@ -166,7 +166,7 @@ module.exports.DELETE = async (req, res) => {
             return res.status(404).json({ message: "Factura no encontrada" });
         }
 
-        res.json({ message: "Factura eliminada correctamente" });
+        res.status(200);
     } catch (error) {
         res.status(500).json({ message: "Error al eliminar la factura" });
     }

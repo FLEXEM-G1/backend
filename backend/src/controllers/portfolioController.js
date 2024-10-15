@@ -156,7 +156,7 @@ module.exports.DELETE = async (req, res) => {
             return res.status(404).json({ message: "Portfolio no encontrado" });
         }
 
-        res.json({ message: "Portfolio eliminado exitosamente" });
+        res.status(200);
     } catch (error) {
         res.status(500).json({ message: "Error al eliminar el portfolio" });
     }

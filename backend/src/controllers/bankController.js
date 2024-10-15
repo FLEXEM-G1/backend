@@ -108,8 +108,92 @@ module.exports.DELETE = async (req, res) => {
             return res.status(404).json({ message: "Banco no encontrado" });
         }
 
-        res.json({ message: "Banco eliminado correctamente" });
+        res.status(200);
     } catch (error) {
         res.status(500).json({ message: "Error al eliminar el banco" });
+    }
+};
+
+// Add commission to bank
+module.exports.ADD_COMMISSION = async (req, res) => {
+    const { id } = req.params;
+    const { type, amount } = req.body;
+
+    if (!type || !amount) {
+        return res.status(400).json({ message: "Todos los campos son obligatorios" });
+    }
+
+    try {
+        const bank = await ModelBank.findById(id);
+
+        if (!bank) {
+            return res.status(404).json({ message: "Banco no encontrado" });
+        }
+
+        bank.commissions.push({ type, amount });
+        await bank.save();
+
+        res.json(bank);
+    } catch (error) {
+        res.status(500).json({ message: "Error al agregar la comisión" });
+    }
+};
+
+// Update commission of a bank
+module.exports.UPDATE_COMMISSION = async (req, res) => {
+    const { id, commissionId } = req.params;
+    const { type, amount } = req.body;
+
+    if (!type || !amount) {
+        return res.status(400).json({ message: "Todos los campos son obligatorios" });
+    }
+
+    try {
+        const bank = await ModelBank.findById(id);
+
+        if (!bank) {
+            return res.status(404).json({ message: "Banco no encontrado" });
+        }
+
+        const commission = bank.commissions.id(commissionId);
+
+        if (!commission) {
+            return res.status(404).json({ message: "Comisión no encontrada" });
+        }
+
+        commission.type = type;
+        commission.amount = amount;
+
+        await bank.save();
+
+        res.json(bank);
+    } catch (error) {
+        res.status(500).json({ message: "Error al actualizar la comisión" });
+    }
+};
+
+// Delete commission of a bank
+module.exports.DELETE_COMMISSION = async (req, res) => {
+    const { id, commissionId } = req.params;
+
+    try {
+        const bank = await ModelBank.findById(id);
+
+        if (!bank) {
+            return res.status(404).json({ message: "Banco no encontrado" });
+        }
+
+        const commission = bank.commissions.id(commissionId);
+
+        if (!commission) {
+            return res.status(404).json({ message: "Comisión no encontrada" });
+        }
+
+        commission.remove();
+        await bank.save();
+
+        res.json(bank);
+    } catch (error) {
+        res.status(500).json({ message: "Error al eliminar la comisión" });
     }
 };

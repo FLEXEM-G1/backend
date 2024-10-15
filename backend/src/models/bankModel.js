@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const commissionSchema = new mongoose.Schema({
-    type: { type: String, required: true },
+    type: { type: String, required: true, enum:['PayF','PayE','Withholding '] },
     amount: { type: Number, required: true }
 });
 
