@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  webapp:
+    container_name: app_flexem_container
+    restart: always
+    build: .
+    ports:
+      - "5001:3000"
+    depends_on:
+      - database
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - flexem_network
+
+  database:
+    container_name: flexem
+    image: mongo
+    ports:
+      - "27018:27017"
+    networks:
+      - flexem_network
+
+networks:
+  flexem_network:
+    driver: bridge
