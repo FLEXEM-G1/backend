@@ -1,6 +1,7 @@
 const invoiceBillModel = require("../models/invoiceBillModel")
 const bankController = require('./bankController')
 const exchangeRates = require('../services/exchange_rates.json')
+const portfolioModel = require("../models/portfolioModel");
 
 // Get all invoice bills
 module.exports.GET_ALL = async (req, res) => {
@@ -54,7 +55,7 @@ module.exports.GET_BY_PORTFOLIO_ID_INT = async (req) => {
         const invoiceBills = await invoiceBillModel.find({ portfolioId: id });
 
         if (invoiceBills.length === 0) {
-            return res.status(404).json({ message: "No se encontraron facturas para el portfolioId proporcionado" });
+            return new Error("No se encontraron facturas para el portfolioId proporcionado");
         }
 
         return invoiceBills;
@@ -66,12 +67,33 @@ module.exports.GET_BY_PORTFOLIO_ID_INT = async (req) => {
 
 // Post invoice bill
 module.exports.POST = async (req, res) => {
-    const { portfolioId, invoiceBillNumber, type, amount, currency, issueDate, expirationDate, state } = req.body;
+    const { portfolioId, 
+        invoiceBillNumber,
+        rucDni,
+        razSocNam, 
+        type, 
+        amount, 
+        currency, 
+        issueDate, 
+        expirationDate, 
+        state } = req.body;
 
     try {
+        // Verificar si existe un portafolio con el ID proporcionado
+        const portfolio = await portfolioModel.findById(portfolioId);
+        if (!portfolio) {
+            return res.status(404).json({ message: "Portafolio no encontrado" });
+        }
+
+        if(portfolio.currency != currency){
+            return res.status(400).json({ message: "La moneda de la factura no coincide con la moneda del portafolio" });
+        }
+
         const newInvoiceBill = new invoiceBillModel({
             portfolioId,
             invoiceBillNumber,
+            rucDni,
+            razSocNam, 
             type,
             amount,
             currency,
@@ -81,21 +103,48 @@ module.exports.POST = async (req, res) => {
         });
 
         const savedInvoiceBill = await newInvoiceBill.save();
-        res.status(201).json(savedInvoiceBill);
+        res.status(200).json(savedInvoiceBill);
     } catch (error) {
-        res.status(500).json({ message: "Error al crear la factura" });
+        res.status(500).json({ message: "Error al crear la factura", error: error });
     }
 };
 
 // Put invoice bill
 module.exports.PUT = async (req, res) => {
     const { id } = req.params;
-    const { portfolioId, invoiceBillNumber, type, amount, currency, issueDate, expirationDate, state } = req.body;
+    const { portfolioId, 
+        invoiceBillNumber,
+        rucDni,
+        razSocNam,
+        type, 
+        amount, 
+        currency, 
+        issueDate, 
+        expirationDate, 
+        state } = req.body;
 
     try {
+        // Verificar si existe un portafolio con el ID proporcionado
+        const portfolio = await portfolioModel.findById(portfolioId);
+        if (!portfolio) {
+            return res.status(404).json({ message: "Portafolio no encontrado" });
+        }
+
+        if(portfolio.currency != currency){
+            return res.status(400).json({ message: "La moneda de la factura no coincide con la moneda del portafolio" });
+        }
         const updatedInvoiceBill = await invoiceBillModel.findByIdAndUpdate(
             id,
-            { portfolioId, invoiceBillNumber, type, amount, currency, issueDate, expirationDate, state },
+            { portfolioId, 
+                invoiceBillNumber,
+                rucDni,
+                razSocNam,
+                type, 
+                amount, 
+                currency, 
+                issueDate, 
+                expirationDate, 
+                state },
             { new: true }
         );
 
@@ -116,57 +165,45 @@ module.exports.PUT_TCEA = async (req) => {
     const { dateTcea, bankId } = req.body;
 
     try {
-        // Obtener la factura por ID
-        const invoiceBill = await invoiceBillModel.findById(id);
-        if (!invoiceBill) {
-            return res.status(404).json({ message: "Factura o letra no encontrada" });
-        }
+        const [invoiceBill, bank] = await Promise.all([
+            invoiceBillModel.findById(id),
+            bankController.GET_BY_ID_INT({ params: { id: bankId } })
+        ]);
 
-        // Obtener el banco por ID
-        const bank = await bankController.GET_BY_ID_INT({ params: { id: bankId } });
-        if (!bank) {
-            return res.status(404).json({ message: "Banco no encontrado" });
-        }
+        if (!invoiceBill) throw new Error("Factura o letra no encontrada");
+        if (!bank) throw new Error("Banco no encontrado");
 
-        // Commisions
-        const totals = { PayF: 0, PayE: 0, Withholding: 0 };
+        // Calcular totales de comisiones
+        const totals = bank.commissions.reduce((acc, { type, amount }) => {
+            if (acc.hasOwnProperty(type)) acc[type] += amount;
+            return acc;
+        }, { PayF: 0, PayE: 0, Withholding: 0 });
 
-        bank.commissions.forEach(commission => {
-            if (totals.hasOwnProperty(commission.type)) {
-                totals[commission.type] += commission.amount;
-            }
-        });
-
-        const { PayF: payF, PayE: payE, Withholding: withholding } = totals;
-
-        // Calcular el monto en base a la moneda
-        const isUSD = invoiceBill.currency === 'USD';
-        const amount = isUSD ? invoiceBill.amount * exchangeRates.rates.PEN : invoiceBill.amount;
-
-        // Calcular la diferencia de días
+        const { amount, currency } = invoiceBill;
+        const isUSD = currency === 'USD';
         const daysDiff = (new Date(invoiceBill.expirationDate) - new Date(dateTcea)) / (1000 * 3600 * 24);
         
-        // Calcular el factor de tasa y el exponente
-        const isTNA = bank.rateType === 'TNA';
-        const rateFactor = isTNA ? bank.rate / (100 * 360) : bank.rate / 100;
-        const exponent = isTNA ? daysDiff : daysDiff / 360;
+        // Cálculos de tasa
+        const rateFactor = bank.rateType === 'TNA' 
+            ? bank.rate / (100 * 360) 
+            : bank.rate / 100;
+        const exponent = bank.rateType === 'TNA' ? daysDiff : daysDiff / 360;
 
-        // Calcular el porcentaje de retención una sola vez
-        const withholdingFactor = (withholding / 100) * amount;
+        // Factores ajustados por moneda
+        const currencyAdjust = isUSD ? 1/exchangeRates.rates.PEN : 1;
+        const withholdingFactor = (totals.Withholding / 100) * amount * currencyAdjust;
+        const payEFactor = totals.PayE * currencyAdjust;
+        const payFFactor = totals.PayF * currencyAdjust;
 
-        // Calcular el monto neto descontado
-        const netAmount = (amount / (1 + rateFactor) ** exponent) - payF - withholdingFactor;
-        // Calcular el TCEA
-        const tcea = (((amount + payE - withholdingFactor) / netAmount) ** (360 / daysDiff) - 1)*100;
-        // Actualizar la factura con los nuevos valores
-        invoiceBill.netDiscountedAmount = netAmount;
-        invoiceBill.tcea = tcea;
-        invoiceBill.dateTcea = dateTcea;
-
-        // Guardar la factura actualizada
+        // Cálculos finales
+        const netAmount = (amount / (1 + rateFactor) ** exponent) - payFFactor - withholdingFactor;
+        const tcea = (((amount + payEFactor - withholdingFactor) / netAmount) ** (360 / daysDiff) - 1) * 100;
+        const netAmountPen = isUSD ? netAmount*exchangeRates.rates.PEN : netAmount;
+        // Actualizar y guardar
+        Object.assign(invoiceBill, { netDiscountedAmount: netAmount, netDiscountedAmountPen: netAmountPen, tcea, dateTcea });
         await invoiceBill.save();
-        // Enviar la respuesta con la factura actualizada
-        return invoiceBill; 
+
+        return invoiceBill;
     } catch (error) {
         console.log(error);
         throw error;

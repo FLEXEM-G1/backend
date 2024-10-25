@@ -32,16 +32,17 @@ module.exports.GET_BY_ID = async (req, res) => {
 
 // Post portfolio
 module.exports.POST = async (req, res) => {
-    const { name, state } = req.body;
+    const { name, state, currency } = req.body;
 
     try {
         const newPortfolio = new portfolioModel({
             name,
-            state
+            state,
+            currency
         });
 
         const savedPortfolio = await newPortfolio.save();
-        res.status(201).json(savedPortfolio);
+        res.status(200).json(savedPortfolio);
     } catch (error) {
         res.status(500).json({ message: "Error al crear el portfolio" });
     }
@@ -50,7 +51,7 @@ module.exports.POST = async (req, res) => {
 // Put portfolio
 module.exports.PUT = async (req, res) => {
     const { id } = req.params;
-    const { name, state } = req.body;
+    const { name, state, currency } = req.body;
 
     try {
         const portfolio = await portfolioModel.findById(id);
@@ -62,6 +63,7 @@ module.exports.PUT = async (req, res) => {
         // Actualiza los campos del portafolio con los datos recibidos
         if (name) portfolio.name = name;
         if (state) portfolio.state = state;
+        if (currency) portfolio.currency = currency;
 
         portfolio.bankId = null;
         portfolio.tcea = null;
@@ -84,65 +86,81 @@ module.exports.PUT_TCEA = async (req, res) => {
     const { bankId, dateTcea  } = req.body;
 
     try {
-        // Obtén el portafolio por ID
-        const portfolio = await portfolioModel.findById(id);
+        // Obtener portfolio y facturas en paralelo
+        const [portfolio, invoiceBills] = await Promise.all([
+            portfolioModel.findById(id),
+            invoiceBillController.GET_BY_PORTFOLIO_ID_INT({ params: { id } })
+        ]);
+
         if (!portfolio) {
             return res.status(404).json({ message: "Portfolio no encontrado" });
         }
-        
-       // Crear un objeto req simulado para GET_BY_PORTFOLIO_ID_INT
-       const invoiceBills = await invoiceBillController.GET_BY_PORTFOLIO_ID_INT({ params: { id: portfolio._id } });
 
-        if (!invoiceBills || invoiceBills.length === 0) {
-            return res.status(404).json({ message: "No se encontraron facturas para el portfolioId proporcionado" });
+        if (!invoiceBills?.length) {
+            return res.status(404).json({ 
+                message: "No se encontraron facturas para el portfolioId proporcionado" 
+            });
         }
 
-         // Ejecutar PUT_TCEA para todas las facturas sin pasar el objeto res
-         const updatePromises = invoiceBills.map(async (element) => {
-            try {
-                return await invoiceBillController.PUT_TCEA({
-                    params: { id: element._id },
-                    body: { dateTcea, bankId: bankId }
-                },{});
-            } catch (error) {
-                console.error(`Error al actualizar TCEA de factura ${element._id}:`, error);
-                throw error; // Permitir que los errores se propaguen
-            }
-        });
+        // Actualizar TCEAs y calcular valores
+        const updatedInvoices = await Promise.all(
+            invoiceBills.map(({ _id }) => 
+                invoiceBillController.PUT_TCEA({
+                    params: { id: _id },
+                    body: { dateTcea, bankId }
+                }, {})
+            )
+        );
 
-        // Espera a que todas las promesas se resuelvan
-        const updatedInvoices = await Promise.all(updatePromises);
+        const isUSD = portfolio.currency === 'USD';
+        const { netDiscountedValue, tceaValues, amount } = calculatePortfolioValues(updatedInvoices, isUSD);
 
-        // Calcula el monto neto descontado usando reduce
-        const netDiscountedValue = updatedInvoices.reduce((accumulator, invoice) => {
-            return accumulator + invoice.netDiscountedAmount;
-        }, 0);
-
-        // Calcula el TCEA
-        const { nom, den } = updatedInvoices.reduce((acc, invoice) => {
-            const amountInSoles = invoice.currency === 'USD' ? invoice.amount * exchangeRates.rates.PEN : invoice.amount;
-            acc.nom += amountInSoles * (invoice.tcea / 100);
-            acc.den += amountInSoles;
-            return acc;
-        }, { nom: 0, den: 0 });
-
-        const tcea = (den !== 0) ? (nom / den) * 100 : 0;
-
-        portfolio.bankId = bankId;
-        portfolio.tcea = tcea;
-        portfolio.netDiscountedAmount = netDiscountedValue;
-        portfolio.dateTcea = dateTcea;
-        portfolio.amount = den;
-
-        const updatedPortfolio = await portfolio.save();
+        // Actualizar portfolio
+        const updatedPortfolio = await portfolioModel.findByIdAndUpdate(
+            id,
+            {
+                bankId,
+                tcea: tceaValues.den !== 0 ? (tceaValues.nom / tceaValues.den) * 100 : 0,
+                netDiscountedAmount: netDiscountedValue,
+                netDiscountedAmountPen: isUSD ? netDiscountedValue * exchangeRates.rates.PEN : netDiscountedValue,
+                dateTcea,
+                amount: amount
+            },
+            { new: true }
+        );
 
         res.json(updatedPortfolio);
     } catch (error) {
         console.log(error)
-        res.status(500).json({ message: "Error al calcular el TCEA" });
+        res.status(500).json({ message: "Error al calcular el TCEA", error: error });
     }
 };
 
+// Función auxiliar para cálculos
+const calculatePortfolioValues = (invoices, isUSD) => {
+    return invoices.reduce((acc, invoice) => {
+        // Calcular monto neto descontado
+        acc.netDiscountedValue += isUSD ? 
+            invoice.netDiscountedAmount : 
+            invoice.netDiscountedAmountPen;
+
+        // Calcular valores para TCEA
+        const amountInSoles = invoice.currency === 'USD' ? 
+            invoice.amount * exchangeRates.rates.PEN : 
+            invoice.amount;
+            
+        acc.tceaValues.nom += amountInSoles * (invoice.tcea / 100);
+        acc.tceaValues.den += amountInSoles;
+        
+        acc.amount += invoice.amount;
+
+        return acc;
+    }, { 
+        netDiscountedValue: 0, 
+        tceaValues: { nom: 0, den: 0 },
+        amount: 0
+    });
+};
 
 // Delete portfolio
 module.exports.DELETE = async (req, res) => {

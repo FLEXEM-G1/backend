@@ -15,7 +15,7 @@ exports.SIGN_UP = async (req, res) => {
 
     try {
         const saveUser = await newUser.save();
-        res.status(201).send(saveUser);
+        res.status(200).send(saveUser);
     } catch (error) {
         res.status(400).send({ error: 'Error al crear el usuario', details: error });
     }

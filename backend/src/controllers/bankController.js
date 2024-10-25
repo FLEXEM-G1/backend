@@ -63,7 +63,7 @@ module.exports.POST = async (req, res) => {
 
     try {
         const savedBank = await newBank.save();
-        res.status(201).json(savedBank);
+        res.status(200).json(savedBank);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Error al guardar el banco" });
