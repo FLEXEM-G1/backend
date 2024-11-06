@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/invoiceBills', invoiceBillController.GET_ALL);
 router.get('/invoiceBills/:id', invoiceBillController.GET_BY_ID); 
 router.get('/portfolio/:id/invoiceBills', invoiceBillController.GET_BY_PORTFOLIO_ID);
-router.get('/invoiceBills/tcea', invoiceBillController.GET_GENERAL_TCEA);
+router.get('/invoiceBills/tcea', invoiceBillController.GET_TCEA);
 router.post('/invoiceBills', invoiceBillController.POST);
 router.put('/invoiceBills/:id', invoiceBillController.PUT);
 router.delete('/invoiceBills/:id', invoiceBillController.DELETE);

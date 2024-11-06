@@ -10,7 +10,7 @@ const invoiceBillSchema = new mongoose.Schema({
     currency: { type: String, required: true, enum: ['USD', 'PEN'] },
     issueDate: {type: Date, require: true},
     expirationDate: {type: Date, require: true},
-    state: {type: String, require: true, enum:['Not Capitalized', 'Capitalized'], default: 'Not Capitalized'},
+    state: {type: String, require: false, enum:['Not Capitalized', 'Capitalized'], default: 'Not Capitalized'},
     netDiscountedAmount: {type: Number, require: false},
     netDiscountedAmountPen: {type: Number, require: false},
     tcea: {type: Number, require: false},

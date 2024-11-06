@@ -14,23 +14,34 @@ module.exports.GET_ALL = async (req, res) => {
 };
 
 // Get general tcea 
-module.exports.GET_GENERAL_TCEA = async (req, res) => {
+module.exports.GET_TCEA = async (req, res) => {
     try{
+        console.log("GET_TCEA function called");
         const invoiceBills = await invoiceBillModel.find();
+        console.log("Invoice Bills:", invoiceBills);
         
-        const { nom, den } = invoiceBills.reduce((acc, i) => {
-            if (i.state === 'Capitalized') {
-                acc.nom += (i.tcea / 100) * i.netDiscountedAmountPen;
-                acc.den += i.netDiscountedAmountPen;
-            }
-            return acc;
-        }, { nom: 0, den: 0 });
+        let nom = 0;
+        let den = 0;
+
+        if (invoiceBills.length > 0) {
+            const result = invoiceBills.reduce((acc, i) => {
+                if (i.state === 'Capitalized') {
+                    acc.nom += (i.tcea / 100) * i.netDiscountedAmountPen;
+                    acc.den += i.netDiscountedAmountPen;
+                }
+                return acc;
+            }, { nom: 0, den: 0 });
+
+            nom = result.nom;
+            den = result.den;
+        }
 
         const tceaGeneral = den !== 0 ? nom / den : 0;
-
+        console.log("TCEA General:", tceaGeneral);
         res.json(tceaGeneral);
     } catch (error) {
-        res.status(500).json({ message: "Error al recuperar las facturas", error: error });
+        console.log(error)
+        res.status(500).json({ message: "Error al calcular el tcea general", error: error });
     }
 }
 
