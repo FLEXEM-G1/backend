@@ -13,6 +13,27 @@ module.exports.GET_ALL = async (req, res) => {
     }
 };
 
+// Get general tcea 
+module.exports.GET_GENERAL_TCEA = async (req, res) => {
+    try{
+        const invoiceBills = await invoiceBillModel.find();
+        
+        const { nom, den } = invoiceBills.reduce((acc, i) => {
+            if (i.state === 'Capitalized') {
+                acc.nom += (i.tcea / 100) * i.netDiscountedAmountPen;
+                acc.den += i.netDiscountedAmountPen;
+            }
+            return acc;
+        }, { nom: 0, den: 0 });
+
+        const tceaGeneral = den !== 0 ? nom / den : 0;
+
+        res.json(tceaGeneral);
+    } catch (error) {
+        res.status(500).json({ message: "Error al recuperar las facturas", error: error });
+    }
+}
+
 // Get invoice bill by ID
 module.exports.GET_BY_ID = async (req, res) => {
     const { id } = req.params;
@@ -199,8 +220,9 @@ module.exports.PUT_TCEA = async (req) => {
         const netAmount = (amount / (1 + rateFactor) ** exponent) - payFFactor - withholdingFactor;
         const tcea = (((amount + payEFactor - withholdingFactor) / netAmount) ** (360 / daysDiff) - 1) * 100;
         const netAmountPen = isUSD ? netAmount*exchangeRates.rates.PEN : netAmount;
+
         // Actualizar y guardar
-        Object.assign(invoiceBill, { netDiscountedAmount: netAmount, netDiscountedAmountPen: netAmountPen, tcea, dateTcea });
+        Object.assign(invoiceBill, { netDiscountedAmount: netAmount, netDiscountedAmountPen: netAmountPen, tcea, dateTcea, state: 'Capitalized' });
         await invoiceBill.save();
 
         return invoiceBill;
