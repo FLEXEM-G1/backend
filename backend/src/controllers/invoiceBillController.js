@@ -99,15 +99,15 @@ module.exports.GET_BY_PORTFOLIO_ID_INT = async (req) => {
 
 // Post invoice bill
 module.exports.POST = async (req, res) => {
-    const { portfolioId, 
+    const { portfolioId,
         invoiceBillNumber,
         rucDni,
-        razSocNam, 
-        type, 
-        amount, 
-        currency, 
-        issueDate, 
-        expirationDate, 
+        razSocNam,
+        type,
+        amount,
+        currency,
+        issueDate,
+        expirationDate,
         state } = req.body;
 
     try {
@@ -125,7 +125,7 @@ module.exports.POST = async (req, res) => {
             portfolioId,
             invoiceBillNumber,
             rucDni,
-            razSocNam, 
+            razSocNam,
             type,
             amount,
             currency,
@@ -144,15 +144,15 @@ module.exports.POST = async (req, res) => {
 // Put invoice bill
 module.exports.PUT = async (req, res) => {
     const { id } = req.params;
-    const { portfolioId, 
+    const { portfolioId,
         invoiceBillNumber,
         rucDni,
         razSocNam,
-        type, 
-        amount, 
-        currency, 
-        issueDate, 
-        expirationDate, 
+        type,
+        amount,
+        currency,
+        issueDate,
+        expirationDate,
         state } = req.body;
 
     try {
@@ -167,15 +167,15 @@ module.exports.PUT = async (req, res) => {
         }
         const updatedInvoiceBill = await invoiceBillModel.findByIdAndUpdate(
             id,
-            { portfolioId, 
+            { portfolioId,
                 invoiceBillNumber,
                 rucDni,
                 razSocNam,
-                type, 
-                amount, 
-                currency, 
-                issueDate, 
-                expirationDate, 
+                type,
+                amount,
+                currency,
+                issueDate,
+                expirationDate,
                 state },
             { new: true }
         );
@@ -214,10 +214,10 @@ module.exports.PUT_TCEA = async (req) => {
         const { amount, currency } = invoiceBill;
         const isUSD = currency === 'USD';
         const daysDiff = (new Date(invoiceBill.expirationDate) - new Date(dateTcea)) / (1000 * 3600 * 24);
-        
+
         // Cálculos de tasa
-        const rateFactor = bank.rateType === 'TNA' 
-            ? bank.rate / (100 * 360) 
+        const rateFactor = bank.rateType === 'TNA'
+            ? bank.rate / (100 * 360)
             : bank.rate / 100;
         const exponent = bank.rateType === 'TNA' ? daysDiff : daysDiff / 360;
 
@@ -260,3 +260,20 @@ module.exports.DELETE = async (req, res) => {
         res.status(500).json({ message: "Error al eliminar la factura" });
     }
 };
+
+// Delete invoice bill by portfolioId
+module.exports.DELETE_BY_PORTFOLIO_ID = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = await invoiceBillModel.deleteMany({ portfolioId: id });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ message: "Facturas no encontradas" });
+        }
+
+        res.status(200).json("Facturas eliminadas correctamente");
+    } catch (error) {
+        res.status(500).json({ message: "Error al eliminar las facturas" });
+    }
+}

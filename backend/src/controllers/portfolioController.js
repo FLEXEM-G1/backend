@@ -70,7 +70,7 @@ module.exports.PUT = async (req, res) => {
         portfolio.netDiscountedValue = null;
         portfolio.dateTcea = null;
         portfolio.amount = null;
-        
+
         const updatedPortfolio = await portfolio.save();
 
         res.json(updatedPortfolio);
@@ -97,14 +97,14 @@ module.exports.PUT_TCEA = async (req, res) => {
         }
 
         if (!invoiceBills?.length) {
-            return res.status(404).json({ 
-                message: "No se encontraron facturas para el portfolioId proporcionado" 
+            return res.status(404).json({
+                message: "No se encontraron facturas para el portfolioId proporcionado"
             });
         }
 
         // Actualizar TCEAs y calcular valores
         const updatedInvoices = await Promise.all(
-            invoiceBills.map(({ _id }) => 
+            invoiceBills.map(({ _id }) =>
                 invoiceBillController.PUT_TCEA({
                     params: { id: _id },
                     body: { dateTcea, bankId }
@@ -140,23 +140,23 @@ module.exports.PUT_TCEA = async (req, res) => {
 const calculatePortfolioValues = (invoices, isUSD) => {
     return invoices.reduce((acc, invoice) => {
         // Calcular monto neto descontado
-        acc.netDiscountedValue += isUSD ? 
-            invoice.netDiscountedAmount : 
+        acc.netDiscountedValue += isUSD ?
+            invoice.netDiscountedAmount :
             invoice.netDiscountedAmountPen;
 
         // Calcular valores para TCEA
-        const amountInSoles = invoice.currency === 'USD' ? 
-            invoice.amount * exchangeRates.rates.PEN : 
+        const amountInSoles = invoice.currency === 'USD' ?
+            invoice.amount * exchangeRates.rates.PEN :
             invoice.amount;
-            
+
         acc.tceaValues.nom += amountInSoles * (invoice.tcea / 100);
         acc.tceaValues.den += amountInSoles;
-        
+
         acc.amount += invoice.amount;
 
         return acc;
-    }, { 
-        netDiscountedValue: 0, 
+    }, {
+        netDiscountedValue: 0,
         tceaValues: { nom: 0, den: 0 },
         amount: 0
     });
@@ -173,9 +173,8 @@ module.exports.DELETE = async (req, res) => {
             return res.status(404).json({ message: "Portfolio no encontrado" });
         }
 
-        res.status(200);
+        res.status(200).json({ message: "Portfolio eliminado correctamente" });
     } catch (error) {
         res.status(500).json({ message: "Error al eliminar el portfolio" });
     }
 };
-

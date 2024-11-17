@@ -11,6 +11,7 @@ services:
       - database
     volumes:
       - .:/usr/src/app
+      - /usr/src/app/node_modules
     networks:
       - flexem_network
 

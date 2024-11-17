@@ -38,7 +38,7 @@ exports.SIGN_IN = async (req, res) => {
         if(!isValid){
             return res.status(401).send({error: 'Contraseña incorrecta'});
         }
-        
+
         res.status(200).json({ message: 'Login successful', id: user._id });
     } catch (error) {
         res.status(500).send({ error: 'Error en el servidor', details: error });
